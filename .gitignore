@@ -1,0 +1,23 @@
+# Build
+build/
+cmake-build-*/
+
+# 长期记忆（含敏感用户数据）
+# memory.json
+
+# 配置（含 API Key）
+agent_config.json
+
+# Session 历史对话
+# sessions/
+
+# 编译产物
+*.o
+*.a
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
