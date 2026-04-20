@@ -1,0 +1,19 @@
+{
+    "llm": {
+        "api_key": "sk-ea51b8421997458cbf79c9405e36966d",
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-chat"
+    },
+    "agent": {
+        "worker_count": 2,
+        "max_tool_iterations": 8
+    },
+    "memory": {
+        "stm_max_messages": 20,
+        "summary_trigger_threshold": 10
+    },
+    "server": {
+        "port": 8080,
+        "thread_num": 4
+    }
+}
