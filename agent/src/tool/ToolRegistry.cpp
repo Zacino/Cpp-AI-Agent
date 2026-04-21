@@ -14,16 +14,16 @@ void ToolRegistry::Register(std::unique_ptr<ITool> tool) {
 }
 
 ToolResult ToolRegistry::Execute(const std::string& name, const Json::Value& args) {
-    std::unique_ptr<ITool> tool;
+    ITool* tool_ptr = nullptr;
     {
         std::lock_guard<std::mutex> lock(mtx_);
         auto it = tools_.find(name);
         if (it == tools_.end()) {
             return ToolResult{false, "", std::format("Tool '{}' not found", name)};
         }
-        // 注意：这里不移动，保持工具在注册表中
-        return it->second->Execute(args);
+        tool_ptr = it->second.get();  // 锁内只查找，取出指针
     }
+    return tool_ptr->Execute(args);  // 锁外执行，避免长时间持锁
 }
 
 Json::Value ToolRegistry::GetAllSchemas() const {

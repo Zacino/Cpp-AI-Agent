@@ -1,3 +1,0 @@
-/home/ubuntu/CppAgent/build/CMakeFiles/agent_server.dir
-/home/ubuntu/CppAgent/build/CMakeFiles/edit_cache.dir
-/home/ubuntu/CppAgent/build/CMakeFiles/rebuild_cache.dir

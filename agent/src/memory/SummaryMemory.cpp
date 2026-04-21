@@ -7,8 +7,8 @@ SummaryMemory::SummaryMemory(size_t trigger_threshold)
 }
 
 void SummaryMemory::Add(const ChatMessage& msg) {
-    // 摘要记忆不直接存储消息，只维护摘要
-    // 消息由 ShortTermMemory 存储
+    // TODO(phase-3): 摘要记忆未实现。当前消息内容由 ShortTermMemory 管理。
+    // 完整闭环需要：达到阈値 -> 调用 LLM 生成摘要 -> UpdateSummary() -> 压缩 STM
     (void)msg;
 }
 

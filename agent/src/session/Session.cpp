@@ -1,5 +1,5 @@
 #include "agent/include/session/Session.h"
-#include <chrono>
+#include "agent/include/utils/TimeUtils.h"
 #include <format>
 #include <filesystem>
 #include <iostream>
@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 Session::Session(std::string id) 
     : id_(std::move(id))
-    , created_at_(std::chrono::system_clock::now().time_since_epoch().count())
+    , created_at_(NowMs())
     , updated_at_(created_at_)
     , memory_(std::make_unique<CompositeMemory>()) {
     
@@ -69,7 +69,8 @@ void Session::LoadFromFile() {
         msg.timestamp = root["timestamp"].asInt64();
         
         if (!msg.role.empty() && !msg.content.empty()) {
-            memory_->Add(msg);
+            full_history_.push_back(msg);  // 完整历史（用于前端展示）
+            memory_->Add(msg);             // STM 窗口（用于 prompt 构建）
         }
     }
     
@@ -93,11 +94,16 @@ static void AppendMsgToFile(const std::string& file_path, const ChatMessage& msg
 }
 
 std::vector<ChatMessage> Session::GetAllMessages() const {
-    return memory_->GetContext();
+    return full_history_;  // 完整历史，供前端展示
+}
+
+std::vector<ChatMessage> Session::GetContextMessages() const {
+    return memory_->GetContext();  // STM 窗口，供 LLM prompt 构建
 }
 
 void Session::AddMessage(const ChatMessage& msg) {
-    memory_->Add(msg);
+    full_history_.push_back(msg);  // 追加到完整历史
+    memory_->Add(msg);             // 追加到 STM 窗口
     {
         std::lock_guard<std::mutex> lock(file_mtx_);
         AppendMsgToFile(file_path_, msg);
@@ -106,8 +112,7 @@ void Session::AddMessage(const ChatMessage& msg) {
 }
 
 std::string Session::GetTitle() const {
-    auto messages = memory_->GetContext();
-    for (const auto& msg : messages) {
+    for (const auto& msg : full_history_) {
         if (msg.role == "user" && !msg.content.empty()) {
             std::string title = msg.content;
             size_t nl = title.find('\n');
@@ -124,7 +129,7 @@ std::string Session::GetTitle() const {
 }
 
 void Session::Touch() {
-    updated_at_ = std::chrono::system_clock::now().time_since_epoch().count();
+    updated_at_ = NowMs();
 }
 
 } // namespace agent

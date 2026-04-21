@@ -89,37 +89,6 @@ void GlobalMemory::AddKnowledge(const std::string& topic, const std::string& con
     Save();
 }
 
-std::string GlobalMemory::GetSystemPrompt() const {
-    std::lock_guard<std::recursive_mutex> lock(mtx_);
-    
-    std::string prompt = R"(You are a helpful AI assistant with access to file tools.
-Available tools:
-- read_file: Read file contents (path must be within /home/ubuntu)
-- write_file: Write content to file (path must be within /home/ubuntu)
-
-When you need to use a tool, respond with a tool call in the function calling format.
-After receiving tool results, provide a helpful response.
-)";
-
-    // 添加用户偏好
-    if (!user_preferences_.empty()) {
-        prompt += "\n[User Preferences]\n";
-        for (const auto& [key, value] : user_preferences_) {
-            prompt += std::format("- {}: {}\n", key, value);
-        }
-    }
-    
-    // 添加知识库
-    if (!knowledge_base_.empty()) {
-        prompt += "\n[Knowledge Base]\n";
-        for (const auto& [topic, content] : knowledge_base_) {
-            prompt += std::format("- {}: {}\n", topic, content);
-        }
-    }
-    
-    return prompt;
-}
-
 std::vector<std::pair<std::string, std::string>> GlobalMemory::GetAllKnowledge() const {
     std::lock_guard<std::recursive_mutex> lock(mtx_);
     return knowledge_base_;

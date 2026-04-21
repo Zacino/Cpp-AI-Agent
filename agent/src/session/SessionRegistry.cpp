@@ -34,8 +34,24 @@ std::shared_ptr<Session> SessionRegistry::Get(const std::string& id) {
 }
 
 bool SessionRegistry::Remove(const std::string& id) {
-    std::unique_lock<std::shared_mutex> lock(mtx_);
-    return sessions_.erase(id) > 0;
+    std::string file_path;
+    {
+        std::unique_lock<std::shared_mutex> lock(mtx_);
+        auto it = sessions_.find(id);
+        if (it == sessions_.end()) return false;
+        file_path = it->second->GetFilePath();
+        sessions_.erase(it);
+    }
+    // 硬删除磁盘文件，避免重启后 session 重新出现
+    if (!file_path.empty() && fs::exists(file_path)) {
+        std::error_code ec;
+        fs::remove(file_path, ec);
+        if (ec) {
+            std::cerr << "[SessionRegistry] Failed to delete file: " << file_path
+                      << " (" << ec.message() << ")" << std::endl;
+        }
+    }
+    return true;
 }
 
 std::vector<std::string> SessionRegistry::List() const {

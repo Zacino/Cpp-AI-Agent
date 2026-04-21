@@ -45,6 +45,7 @@ set(AGENT_SRC
     ${PROJECT_SOURCE_DIR}/agent/src/memory/SummaryMemory.cpp
     ${PROJECT_SOURCE_DIR}/agent/src/memory/CompositeMemory.cpp
     ${PROJECT_SOURCE_DIR}/agent/src/memory/GlobalMemory.cpp
+    ${PROJECT_SOURCE_DIR}/agent/src/memory/PromptBuilder.cpp
     ${PROJECT_SOURCE_DIR}/agent/src/config/ConfigManager.cpp
 )
 

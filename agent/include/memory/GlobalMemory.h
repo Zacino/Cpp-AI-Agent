@@ -20,10 +20,7 @@ public:
     void AddUserPreference(const std::string& key, const std::string& value);
     void AddKnowledge(const std::string& topic, const std::string& content);
     
-    // 获取系统提示（包含全局知识）
-    std::string GetSystemPrompt() const;
-    
-    // 获取所有知识
+    // 纯数据访问（prompt 生成由 PromptBuilder 负责）
     std::vector<std::pair<std::string, std::string>> GetAllKnowledge() const;
     std::vector<std::pair<std::string, std::string>> GetAllPreferences() const;
     

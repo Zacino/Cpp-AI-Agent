@@ -10,9 +10,7 @@
 #include <memory>
 
 namespace agent {
-// OPENAI_API_KEY=sk-ea51b8421997458cbf79c9405e36966d
-// OPENAI_BASE_URL=https://api.deepseek.com
-// deepseek-chat
+
 struct AgentConfig {
     size_t worker_count = 2;
     int max_tool_iterations = 8;
@@ -42,13 +40,9 @@ private:
         const std::vector<ChatMessage>& context,
         const std::string& user_input);
 
-    std::string BuildPrompt(
-        const std::vector<ChatMessage>& context,
-        const std::string& user_input);
-
     AgentConfig config_;
     std::vector<std::jthread> workers_;
-    std::stop_source stop_source_;
+    std::jthread outbound_consumer_;  // 受控 outbound 消费者线程
 
     // Bus 通道
     BusChannel<InboundMessage>::Sender inbound_sender_;

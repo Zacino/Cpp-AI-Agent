@@ -31,8 +31,11 @@ public:
     // 记忆系统访问
     CompositeMemory& Memory() { return *memory_; }
     
-    // 获取所有消息（从内存 + 从文件加载）
+    // 完整历史（用于前端展示）
     std::vector<ChatMessage> GetAllMessages() const;
+    
+    // STM 上下文窗口（用于构建 LLM prompt，受容量限制）
+    std::vector<ChatMessage> GetContextMessages() const;
     
     // 添加消息并保存到文件
     void AddMessage(const ChatMessage& msg);
@@ -58,9 +61,10 @@ private:
     int64_t created_at_;
     int64_t updated_at_;
     std::string file_path_;
-    std::unique_ptr<CompositeMemory> memory_;
-    std::mutex execution_mtx_;  // 会话级执行锁
-    mutable std::mutex file_mtx_;  // 文件操作锁
+    std::vector<ChatMessage> full_history_;   // 完整对话历史（不受 STM 窗口限制）
+    std::unique_ptr<CompositeMemory> memory_; // STM + Summary（供 prompt 构建）
+    std::mutex execution_mtx_;
+    mutable std::mutex file_mtx_;
 };
 
 } // namespace agent

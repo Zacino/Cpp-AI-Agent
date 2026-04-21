@@ -4,7 +4,8 @@
 #include "agent/include/router/ResponseRouter.h"
 #include "agent/include/llm/OpenAIProvider.h"
 #include "agent/include/tool/ToolRegistry.h"
-#include "agent/include/memory/GlobalMemory.h"
+#include "agent/include/memory/PromptBuilder.h"
+#include "agent/include/utils/TimeUtils.h"
 #include <format>
 #include <iostream>
 
@@ -33,8 +34,8 @@ void AgentRuntime::Initialize(const AgentConfig& config) {
     llm_config.model = config.model;
     llm_provider_ = std::make_unique<OpenAIProvider>(llm_config);
     
-    // 启动 OutboundBus 消费者（路由到 ResponseRouter）
-    std::jthread outbound_consumer([outbound_receiver](std::stop_token st) {
+    // 启动 OutboundBus 消费者（路由到 ResponseRouter，使用受控线程而非 detach）
+    outbound_consumer_ = std::jthread([outbound_receiver](std::stop_token st) {
         while (!st.stop_requested()) {
             auto msg = outbound_receiver->Receive(st);
             if (msg) {
@@ -42,29 +43,33 @@ void AgentRuntime::Initialize(const AgentConfig& config) {
             }
         }
     });
-    outbound_consumer.detach();
 }
 
 void AgentRuntime::Start() {
-    stop_source_ = std::stop_source{};
-    
     for (size_t i = 0; i < config_.worker_count; ++i) {
         workers_.emplace_back([this](std::stop_token st) {
             WorkerLoop(st);
         });
     }
-    
     std::cout << std::format("AgentRuntime started with {} workers", config_.worker_count) << std::endl;
 }
 
 void AgentRuntime::Stop() {
-    stop_source_.request_stop();
+    // 请求停止所有 worker（使用 jthread 自身的 stop_token）
     for (auto& worker : workers_) {
-        if (worker.joinable()) {
-            worker.join();
-        }
+        worker.request_stop();
+    }
+    for (auto& worker : workers_) {
+        if (worker.joinable()) worker.join();
     }
     workers_.clear();
+
+    // 停止 outbound 消费者
+    outbound_consumer_.request_stop();
+    if (outbound_consumer_.joinable()) outbound_consumer_.join();
+
+    // 将所有挂起的请求以错误失败，避免 HTTP 线程永久阻塞
+    ResponseRouter::Instance().FailAll("Server is shutting down");
     std::cout << "AgentRuntime stopped" << std::endl;
 }
 
@@ -98,16 +103,15 @@ OutboundMessage AgentRuntime::ProcessMessage(const InboundMessage& msg) {
     // 获取 Session 执行锁（保证串行处理）
     std::lock_guard<std::mutex> lock(session->ExecutionMutex());
     
-    // 获取上下文（所有历史消息）
-    std::vector<ChatMessage> context = session->GetAllMessages();
+    // 获取上下文（STM 窗口，用于构建 prompt）
+    std::vector<ChatMessage> context = session->GetContextMessages();
     
     // 运行 Agent Loop
     std::string reply = RunAgentLoop(msg.session_id, context, msg.content);
     
     // 更新 Session 记忆并保存到文件
-    ChatMessage user_msg{"user", msg.content, msg.timestamp, {}};
-    ChatMessage assistant_msg{"assistant", reply, 
-        std::chrono::system_clock::now().time_since_epoch().count(), {}};
+    ChatMessage user_msg{"user", msg.content, NowMs(), {}};
+    ChatMessage assistant_msg{"assistant", reply, NowMs(), {}};
     session->AddMessage(user_msg);
     session->AddMessage(assistant_msg);
     
@@ -115,9 +119,9 @@ OutboundMessage AgentRuntime::ProcessMessage(const InboundMessage& msg) {
     auto& summary_mem = session->Memory().GetSummary();
     auto& stm = session->Memory().GetSTM();
     if (summary_mem.NeedsSummary(stm.Size())) {
-        // TODO: 异步生成摘要
-        // 这里简化处理，实际应该调用 LLM 生成摘要
-        std::cout << "[Memory] Triggering summarization for session " << msg.session_id << std::endl;
+        // TODO(phase-3): 异步调用 LLM 生成摘要，当前为未实现占位
+        std::cout << "[Memory] Summary needed for session " << msg.session_id
+                  << " (stm_size=" << stm.Size() << ") - not yet implemented" << std::endl;
     }
     
     response.content = reply;
@@ -137,10 +141,10 @@ std::string AgentRuntime::RunAgentLoop(
     request.temperature = 0.7f;
     
     // 添加系统提示（包含全局长期记忆）
-    std::string system_prompt = GlobalMemory::Instance().GetSystemPrompt();
+    std::string system_prompt = PromptBuilder::BuildSystemPrompt();
     request.messages.push_back(LLMMessage{"system", system_prompt, {}});
     
-    // 添加上下文
+    // 添加上下文（仅用 STM 窗口，而非全量历史）
     for (const auto& msg : context) {
         LLMMessage llm_msg{msg.role, msg.content, {}};
         request.messages.push_back(std::move(llm_msg));
@@ -188,28 +192,6 @@ std::string AgentRuntime::RunAgentLoop(
     }
     
     return "Error: Maximum tool iterations reached";
-}
-
-std::string AgentRuntime::BuildPrompt(
-    const std::vector<ChatMessage>& context,
-    const std::string& user_input) {
-    
-    std::string prompt;
-    
-    // 添加上下文（最近的消息）
-    const size_t max_context = 10;
-    size_t start = context.size() > max_context ? context.size() - max_context : 0;
-    
-    for (size_t i = start; i < context.size(); ++i) {
-        const auto& msg = context[i];
-        prompt += std::format("{}: {}\n", msg.role, msg.content);
-    }
-    
-    // 添加当前输入
-    prompt += std::format("user: {}\n", user_input);
-    prompt += "assistant: ";
-    
-    return prompt;
 }
 
 } // namespace agent

@@ -22,6 +22,9 @@ public:
     // 失败响应
     void Fail(const std::string& message_id, const std::string& error);
 
+    // 服务停止时将所有挂起请求全部失败，避免 HTTP 线程永久阻塞
+    void FailAll(const std::string& error);
+
 private:
     ResponseRouter() = default;
 

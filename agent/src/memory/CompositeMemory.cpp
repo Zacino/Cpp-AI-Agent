@@ -1,10 +1,12 @@
 #include "agent/include/memory/CompositeMemory.h"
+#include "agent/include/config/ConfigManager.h"
 
 namespace agent {
 
-CompositeMemory::CompositeMemory()
-    : stm_(std::make_unique<ShortTermMemory>(20))
-    , summary_(std::make_unique<SummaryMemory>(10)) {
+CompositeMemory::CompositeMemory() {
+    const auto& cfg = ConfigManager::Instance().GetConfig();
+    stm_     = std::make_unique<ShortTermMemory>(cfg.stm_max_messages);
+    summary_ = std::make_unique<SummaryMemory>(cfg.summary_trigger_threshold);
 }
 
 void CompositeMemory::Add(const ChatMessage& msg) {
